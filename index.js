@@ -38,6 +38,13 @@ async function run() {
     app.get("/courses", async (req, res) => {
         const cursor = courseCollection.find();
         const result = await cursor.toArray();
+        console.log(result);
+        res.send(result);
+    });
+
+    app.get("/featured", async (req, res) => {
+        const cursor = courseCollection.find().limit(4);
+        const result = await cursor.toArray();
         // console.log(result);
         res.send(result);
     });
@@ -49,7 +56,9 @@ async function run() {
         // console.log(course);
         res.send(course);
         
-    })
+    }) 
+
+
 
 
 
