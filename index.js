@@ -5,6 +5,8 @@ const dotenv = require("dotenv");
 dotenv.config();
 const app = express();
 app.use(cors());
+app.use(express.json());
+
 const port = process.env.PORT || 8000;
 
 //mentora
@@ -76,6 +78,7 @@ async function run() {
 
     const db = client.db("mentora");
     const courseCollection = db.collection("courseCollection");
+    const enrollmentCollection = db.collection("enrollments");
 
     app.get("/courses", async (req, res) => {
       console.log(req.query);
@@ -116,6 +119,36 @@ async function run() {
       // console.log(course);
       res.send(course);
     });
+
+    app.patch("/enrollments/:courseId", verifyToken, async(req, res) => {
+      console.log('from enrollment');
+      const {courseId} = req.params;
+      const enrollmentData = req.body;
+
+
+      const course = await courseCollection.findOne({_id: new ObjectId(courseId)})
+
+      if(!course){
+        res.status(404).json({message: "Course not Found!"});
+      }
+      await courseCollection.updateOne({_id: new ObjectId(courseId)},{
+        $inc: {enrollCount: 1},
+        $set: {
+          lastEnrolledAt: new Date()
+        }
+      });
+
+      const result = await enrollmentCollection.insertOne({
+        ...enrollmentData,
+        enrolledAt: new Date ()
+
+      });
+      console.log(result, "nogod result");
+      res.send(result);
+    
+
+
+    })
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
