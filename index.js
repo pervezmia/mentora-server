@@ -1,19 +1,25 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
 
 dotenv.config();
 const app = express();
 app.use(cors());
 const port = process.env.PORT || 8000;
 
-
 //mentora
 //QQSun7rl2aehKwcu
 
-
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 const uri = process.env.MONGO_DB_URI;
+
+
+const JWKS = createRemoteJWKSet(
+      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
+      // new URL('http://localhost:3000/api/auth/jwks')
+    )
+    // console.log(JWKS, "JWKS");
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -21,8 +27,45 @@ const client = new MongoClient(uri, {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
+
+const logger = (req, res, next) => {
+  // console.log(req.params,"from first");
+  console.log(`${req.method} | ${req.url}`);
+  next();
+};
+
+const verifyToken = async (req, res, next) => {
+  const { authorization } = req.headers;
+  // console.log(req.headers, "from verify token");
+  const token = authorization?.split(" ")[1];
+  // console.log(token);
+
+  if(!token){
+    return res.status(401).json({message: "Unauthorize"});
+  }
+
+  try {
+    const JWKS = createRemoteJWKSet(
+      new URL('http://localhost:3000/api/auth/jwks')
+    )
+    const { payload } = await jwtVerify(token, JWKS)
+    // console.log(payload, "pay load"); // user info
+    
+    req.user = payload;
+    console.log(req.user, "r u");
+
+    next();
+
+  } catch (error) {
+    console.error('Token validation failed:', error)
+    return res.status(401).json({message: "Unauthorize"});
+  }
+
+
+  
+};
 
 async function run() {
   try {
@@ -34,39 +77,34 @@ async function run() {
     const db = client.db("mentora");
     const courseCollection = db.collection("courseCollection");
 
-
     app.get("/courses", async (req, res) => {
-        const cursor = courseCollection.find();
-        const result = await cursor.toArray();
-        console.log(result);
-        res.send(result);
+      const cursor = courseCollection.find();
+      const result = await cursor.toArray();
+      // console.log(result);
+      res.send(result);
     });
 
     app.get("/featured", async (req, res) => {
-        const cursor = courseCollection.find().limit(4);
-        const result = await cursor.toArray();
-        // console.log(result);
-        res.send(result);
+      const cursor = courseCollection.find().limit(4);
+      const result = await cursor.toArray();
+      // console.log(result);
+      res.send(result);
     });
 
-    app.get("/courses/:courseId", async (req, res) => {
-        const {courseId} = req.params;
-        const query = {_id: new ObjectId (courseId)};
-        const course = await courseCollection.findOne(query);
-        // console.log(course);
-        res.send(course);
-        
-    }) 
+    app.get("/courses/:courseId", logger, verifyToken, async (req, res) => {
 
+      console.log(req.user, "req user");
 
+      const { courseId } = req.params;
+      const query = { _id: new ObjectId(courseId) };
+      const course = await courseCollection.findOne(query);
+      // console.log(course);
+      res.send(course);
+    });
 
-
-
-
-
-
-
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    console.log(
+      "Pinged your deployment. You successfully connected to MongoDB!",
+    );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -74,16 +112,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
-
-app.get('/', (req, res) => {
-  res.send('Hello World! ');
+app.get("/", (req, res) => {
+  res.send("Hello World! ");
 });
-
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
-
-
