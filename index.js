@@ -78,9 +78,24 @@ async function run() {
     const courseCollection = db.collection("courseCollection");
 
     app.get("/courses", async (req, res) => {
-      const cursor = courseCollection.find();
+      console.log(req.query);
+      const {search} = req.query ;
+      console.log(search,"ssss");
+
+      let cursor;
+      //cursor er kaj ta hoi nai skip kore gelam 
+      if(search){
+
+        cursor = courseCollection.find({ title: { $eq: "Stainless Steel Cookware Set updated version" }}).toArray();
+        console.log(cursor);
+        res.send({});
+      } else {
+        cursor = courseCollection.find();
+
+      }
+      // const cursor = courseCollection.find();
       const result = await cursor.toArray();
-      // console.log(result);
+      console.log(result,"search re");
       res.send(result);
     });
 
