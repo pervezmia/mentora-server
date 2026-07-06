@@ -19,7 +19,7 @@ const uri = process.env.MONGO_DB_URI;
 const JWKS = createRemoteJWKSet(
   new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
   // new URL('http://localhost:3000/api/auth/jwks')
-);
+); 
 // console.log(JWKS, "JWKS");
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -49,7 +49,7 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const JWKS = createRemoteJWKSet(
-      new URL("http://localhost:3000/api/auth/jwks"),
+      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
     );
     const { payload } = await jwtVerify(token, JWKS);
     // console.log(payload, "pay load"); // user info
@@ -59,15 +59,15 @@ const verifyToken = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("Token validation failed:", error);
+    // console.error("Token validation failed:", error);
     return res.status(401).json({ message: "Unauthorize" });
   }
 };
 
-async function run() {
-  try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+// async function run() {
+//   try {
+//     // Connect the client to the server	(optional starting in v4.7)
+//     await client.connect();
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
 
@@ -76,7 +76,7 @@ async function run() {
     const enrollmentCollection = db.collection("enrollments");
 
     app.get("/courses", async (req, res) => {
-      console.log(req.query);
+      // console.log(req.query);
       const { search } = req.query;
       // console.log(search,"ssss");
 
@@ -105,7 +105,7 @@ async function run() {
             },
           ],
         });
-        console.log(cursor);
+        // console.log(cursor);
         // res.send({});
       } else {
         cursor = courseCollection.find();
@@ -138,7 +138,7 @@ async function run() {
       const result = await enrollmentCollection
         .find({ userId: userId })
         .toArray();
-      console.log(result);
+      // console.log(result);
       res.send(result);
     });
 
@@ -164,7 +164,7 @@ async function run() {
         },
       );
 
-      console.log(enrollmentData);
+      // console.log(enrollmentData);
 
       const result = await enrollmentCollection.insertOne({
         ...enrollmentData,
@@ -209,12 +209,12 @@ async function run() {
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
-  }
-}
-run().catch(console.dir);
+//   } finally {
+//     // Ensures that the client will close when you finish/error
+//     // await client.close();
+//   }
+// }
+// run().catch(console.dir);
 
 app.get("/", (req, res) => {
   res.send("Hello World! ");
