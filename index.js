@@ -16,12 +16,11 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const { createRemoteJWKSet, jwtVerify } = require("jose-cjs");
 const uri = process.env.MONGO_DB_URI;
 
-
 const JWKS = createRemoteJWKSet(
-      new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
-      // new URL('http://localhost:3000/api/auth/jwks')
-    )
-    // console.log(JWKS, "JWKS");
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+  // new URL('http://localhost:3000/api/auth/jwks')
+);
+// console.log(JWKS, "JWKS");
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -44,29 +43,25 @@ const verifyToken = async (req, res, next) => {
   const token = authorization?.split(" ")[1];
   // console.log(token);
 
-  if(!token){
-    return res.status(401).json({message: "Unauthorize"});
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorize" });
   }
 
   try {
     const JWKS = createRemoteJWKSet(
-      new URL('http://localhost:3000/api/auth/jwks')
-    )
-    const { payload } = await jwtVerify(token, JWKS)
+      new URL("http://localhost:3000/api/auth/jwks"),
+    );
+    const { payload } = await jwtVerify(token, JWKS);
     // console.log(payload, "pay load"); // user info
-    
+
     req.user = payload;
-    console.log(req.user, "r u");
+    // console.log(req.user, "r u");
 
     next();
-
   } catch (error) {
-    console.error('Token validation failed:', error)
-    return res.status(401).json({message: "Unauthorize"});
+    console.error("Token validation failed:", error);
+    return res.status(401).json({ message: "Unauthorize" });
   }
-
-
-  
 };
 
 async function run() {
@@ -82,23 +77,42 @@ async function run() {
 
     app.get("/courses", async (req, res) => {
       console.log(req.query);
-      const {search} = req.query ;
-      console.log(search,"ssss");
+      const { search } = req.query;
+      // console.log(search,"ssss");
 
       let cursor;
-      //cursor er kaj ta hoi nai skip kore gelam 
-      if(search){
-
-        cursor = courseCollection.find({ title: { $eq: "Stainless Steel Cookware Set updated version" }}).toArray();
+      //cursor er kaj ta hoi nai skip kore gelam
+      if (search) {
+        cursor = await courseCollection.find({
+          $or: [
+            {
+              title: {
+                $regex: search,
+                $options: "i",
+              },
+            },
+            {
+              instructor: {
+                $regex: search,
+                $options: "i",
+              },
+            },
+            {
+              description: {
+                $regex: search,
+                $options: "i",
+              },
+            },
+          ],
+        });
         console.log(cursor);
-        res.send({});
+        // res.send({});
       } else {
         cursor = courseCollection.find();
-
       }
       // const cursor = courseCollection.find();
       const result = await cursor.toArray();
-      console.log(result,"search re");
+      // console.log(result,"search re");
       res.send(result);
     });
 
@@ -110,8 +124,7 @@ async function run() {
     });
 
     app.get("/courses/:courseId", logger, verifyToken, async (req, res) => {
-
-      console.log(req.user, "req user");
+      // console.log(req.user, "req user");
 
       const { courseId } = req.params;
       const query = { _id: new ObjectId(courseId) };
@@ -120,35 +133,78 @@ async function run() {
       res.send(course);
     });
 
-    app.patch("/enrollments/:courseId", verifyToken, async(req, res) => {
-      console.log('from enrollment');
-      const {courseId} = req.params;
+    app.get("/enrollments/:userId", verifyToken, async (req, res) => {
+      const { userId } = req.params;
+      const result = await enrollmentCollection
+        .find({ userId: userId })
+        .toArray();
+      console.log(result);
+      res.send(result);
+    });
+
+    app.patch("/enrollments/:courseId", verifyToken, async (req, res) => {
+      // console.log('from enrollment');
+      const { courseId } = req.params;
       const enrollmentData = req.body;
 
-
-      const course = await courseCollection.findOne({_id: new ObjectId(courseId)})
-
-      if(!course){
-        res.status(404).json({message: "Course not Found!"});
-      }
-      await courseCollection.updateOne({_id: new ObjectId(courseId)},{
-        $inc: {enrollCount: 1},
-        $set: {
-          lastEnrolledAt: new Date()
-        }
+      const course = await courseCollection.findOne({
+        _id: new ObjectId(courseId),
       });
+
+      if (!course) {
+        res.status(404).json({ message: "Course not Found!" });
+      }
+      await courseCollection.updateOne(
+        { _id: new ObjectId(courseId) },
+        {
+          $inc: { enrollCount: 1 },
+          $set: {
+            lastEnrolledAt: new Date(),
+          },
+        },
+      );
+
+      console.log(enrollmentData);
 
       const result = await enrollmentCollection.insertOne({
         ...enrollmentData,
-        enrolledAt: new Date ()
-
+        enrolledAt: new Date(),
       });
-      console.log(result, "nogod result");
+      // console.log(result, "nogod result");
       res.send(result);
-    
+    });
 
+    app.delete("/enrollments/:courseId", verifyToken, async (req, res) => {
+      const { courseId } = req.params;
+      const userId = req.user.id;
 
-    })
+      const courseObjectId = new ObjectId(courseId);
+
+      const existingEnrollment = await enrollmentCollection.findOne({
+        courseId,
+        userId,
+      });
+
+      if (!existingEnrollment) {
+        return res.status(404).json({ message: "Enrollment not found!" });
+      }
+
+      await enrollmentCollection.deleteOne({
+        courseId,
+        userId,
+      });
+
+      const result = await courseCollection.updateOne(
+        { _id: courseObjectId },
+        {
+          $inc: {
+            enrollCount: existingEnrollment ? -1 : 0,
+          },
+        },
+      );
+
+      res.send(result);
+    });
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
